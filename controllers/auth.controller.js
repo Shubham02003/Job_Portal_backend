@@ -1,39 +1,74 @@
 import JobSeeker from "../models/jobSeeker.model.js";
 import Company from "../models/company.model.js";
 import bcrypt from "bcryptjs";
+import cloudinary from "cloudinary";
+
 const registerController = async (req, res) => {
+ 
   try {
     const {
       userType,
       name,
       email,
       password,
-      resume,
-      profile_picture,
       website_url,
       company_name,
       hiring_person,
-      logo,
       description,
     } = req.body;
 
+    let resumeUrl, profilePictureUrl, logoUrl;
+
+    // Handle Job Seeker Registration
+    
     if (userType === "job_seeker") {
       if (!email) {
-        return res.status(400).json({ error: "email is required" });
+        return res.status(400).json({ error: "Email is required" });
       }
-      const exitJobSeerker = await JobSeeker.findOne({ email });
-      if (exitJobSeerker) {
-        return res.status(400).json({
-          error: "This email Already exits Please login",
-          success: false,
-        });
+
+      // Check for existing user by email
+      const existingJobSeeker = await JobSeeker.findOne({ email });
+      if (existingJobSeeker) {
+        return res.status(400).json({ error: "Email already registered" });
       }
+
+      // Upload resume and profile picture if they exist
+      if (req.files?.resume) {
+        try {
+         
+          const resumeUpload = await cloudinary.v2.uploader.upload(
+            req.files.resume[0].path,
+            {
+              folder: "job_portal/resumes",
+            }
+          );
+          resumeUrl = resumeUpload.secure_url;
+        } catch (err) {
+          console.log(err);
+        }
+      }
+
+      if (req.files?.profile_picture) {
+        
+        try {
+          const profileUpload = await cloudinary.v2.uploader.upload(
+            req.files.profile_picture[0].path,
+            {
+              folder: "job_portal/profile_pictures",
+            }
+          );
+          profilePictureUrl = profileUpload.secure_url;
+        } catch (error) {
+          console.log(error);
+        }
+      }
+
       const jobSeeker = new JobSeeker({
         name,
         email,
         password,
-        resume,
-        profile_picture,
+        resume: resumeUrl,
+        profile_picture: profilePictureUrl,
       });
 
       await jobSeeker.save();
@@ -43,27 +78,43 @@ const registerController = async (req, res) => {
         user: {
           name,
           email,
-          resume,
-          profile_picture,
+          resume: resumeUrl,
+          profile_picture: profilePictureUrl,
         },
         accessToken: token,
       });
+
+      // Handle Company Registration
     } else if (userType === "company") {
       if (!company_name) {
-        return res.status(400).json({ error: "Company is required" });
+        return res.status(400).json({ error: "Company name is required" });
       }
-      const exitCompany = await Company.findOne({ company_name });
-      if (exitCompany) {
-        return res.status(400).json({
-          error: "This Company Already exits Please login",
-          success: false,
-        });
+
+      const existingCompany = await Company.findOne({ company_name });
+      if (existingCompany) {
+        return res.status(400).json({ error: "Company already registered" });
       }
+
+      // Upload logo if it exists
+      if (req.files?.logo) {
+        try {
+          const logoUpload = await cloudinary.v2.uploader.upload(
+            req.files.logo[0].path,
+            {
+              folder: "job_portal/logos",
+            }
+          );
+          logoUrl = logoUpload.secure_url;
+        } catch (error) {
+          console.log(error);
+        }
+      }
+
       const newCompany = new Company({
         website_url,
         company_name,
         hiring_person,
-        logo,
+        logo: logoUrl,
         description,
         password,
       });
@@ -76,7 +127,7 @@ const registerController = async (req, res) => {
           company_name,
           website_url,
           hiring_person,
-          logo,
+          logo: logoUrl,
           description,
         },
         accessToken: token,
